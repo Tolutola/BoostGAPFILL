@@ -1,6 +1,6 @@
 # BoostGAPFILL
 
-beta version of BoostGAPFILL for gap filling analysis of metabolic network reconstructions implented in MATLAB
+beta version of BoostGAPFILL for gap filling analysis of metabolic network reconstructions implemented in MATLAB
 
 Requires installation of the COBRA toolbox
 
