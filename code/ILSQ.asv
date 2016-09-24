@@ -1,0 +1,199 @@
+function [Lambda,scores,resnorm] = ILSQ(dA,U1,num_prediction,rr,cc,mask,blacklist,solver)
+%  for solving the (integer) least square optimization
+%%
+global maxTime penID newMet tempModel biomass_threshold modeFlag integerSoln
+l0 = rand(cc,1);
+opts = optimset('MaxFunEval',inf,'MaxIter',Inf,'display','off');
+
+M=1000; % bound on flux constraints
+
+dA1 = reshape(dA,rr^2,1);
+blacklist=1-blacklist;
+mask = mask(:);
+
+if ~integerSoln % relaxed solutions are required
+    if strcmp(modeFlag,'integrated')
+        vlb=-M*ones(cc,1);
+        vub=M*ones(cc,1);
+        U1 = bsxfun(@times,U1,mask);
+        
+        solutionFBA=optimizeCbModel(tempModel);
+        
+        dA1 = dA1.*mask;
+        
+        lb = [zeros(cc,1);vlb;tempModel.lb];
+        ub = [blacklist;vub;tempModel.ub];
+        [nm,nr]=size(tempModel.S);
+        %           nr=size(tempModel.trainr,2);
+        x0 = [rand(cc,1);randn(cc,1);tempModel.lb];
+        A=[zeros(1,cc*2),-tempModel.c'];
+        b=-biomass_threshold;
+        
+        
+        if ~newMet
+            %             S=tempModel.trainr;
+            S=tempModel.S;
+            U=tempModel.unrepeat_US;
+            
+        else
+            sUs = tempModel.universalStoich;
+            U=sUs(:,tempModel.check_repeat);
+            S=sUs(:,ismember(tempModel.unrnames,tempModel.rxns));
+        end
+        
+        
+        options = optimoptions('fmincon','Display','off','MaxFunctionEvaluations',5e5,'MaxIterations',2e4,'SpecifyObjectiveGradient',true);
+        nonlcon = @(x) nlc(U,S,nr,x);
+        result = fmincon(@obj,x0,A,b,[],[],lb,ub,nonlcon,options);
+        scores = result(1:cc);
+        
+        
+    else
+        C=bsxfun(@times,U1,mask);
+        d=dA1.*mask;
+        
+        if newMet
+            C=[C;zeros(1,size(C,2))];
+            C(end,penID)=1; % penalizing the addition of new metabolites
+            d=[d;0];
+        end
+        
+        if strcmp(solver,'ibm_cplex') % solver type
+            options = cplexoptimset;
+            options.Display = 'off';
+            options.TolFun=1e-9;
+            options.TolRLPFun=1e-9;
+            options.Algorithm='primal';
+            [scores,resnorm] = cplexlsqlin(C,d,[],[],[],[],zeros(cc,1),blacklist,l0,options);
+            
+        else
+            [scores,resnorm] = lsqlin(C,d,[],[],[],[],zeros(cc,1),blacklist,l0,opts);
+        end
+    end
+    
+    [~,I] = sort(scores,1,'descend');
+    if num_prediction > 1
+        if num_prediction> length(I), num_prediction=length(I); end
+        Lambda(I(1:num_prediction)) = 1;    %only keep hl with top scores
+        Lambda = logical(Lambda);
+    else
+        Lambda(scores>num_prediction) = 1;
+        Lambda = logical(Lambda);
+    end
+ 
+else  % integer solutions are required
+    
+    if strcmp(modeFlag,'integrated')
+%         x=[lambdas,lambdas*w,w,v]
+        [~,nr]=size(tempModel.S);
+%       for the lambdas
+        C=bsxfun(@times,U1,mask);
+        d=dA1.*mask;
+        
+        % expand C to contain zeros for all other variables
+        C=[C,sparse(size(C,1),2*cc+nr)];
+        
+        
+        wlb=-M*ones(cc,1);
+        wub=M*ones(cc,1);
+        
+        lwlb=-M*10*ones(cc,1);
+        lwub=M*10*ones(cc,1);
+               
+%         solutionFBA=optimizeCbModel(tempModel);
+        %adjust bounds for exchange reactions
+        tempModel.lb(findExc
+               
+        lb = [zeros(cc,1);lwlb;wlb;tempModel.lb];
+        ub = [blacklist;lwub;wub;tempModel.ub];
+        
+        % variable type
+        ctype(1:cc)='B'; % binary
+        ctype(end+1:3*cc+nr)='C';  % continuous
+       
+        
+        [~,nr]=size(tempModel.S);
+         if ~newMet
+            %             S=tempModel.trainr;
+            S=tempModel.S;
+            U=tempModel.unrepeat_US;
+            
+        else
+            sUs = tempModel.universalStoich;
+            U=sUs(:,tempModel.check_repeat);
+            S=sUs(:,ismember(tempModel.unrnames,tempModel.rxns));
+        end
+        
+%         x0 = [zeros(cc,1);randn(cc,1);solutionFBA.x];
+          x0=[];
+          
+        % specify equality constraints
+        nm=size(S,1);
+        Aeq=[zeros(nm,cc),U,zeros(nm,cc),S];
+        beq=zeros(nm,1);
+        % including the number of lambda's required
+        Aeq=[Aeq;ones(1,3*cc+nr)];
+        beq=[beq;num_prediction];
+        
+        %specify the inequality constraints
+        A1=[-M*speye(cc) -speye(cc) zeros(cc,cc+nr)];
+        b1=zeros(size(A1,1),1);
+        
+        A2=[-M*speye(cc) speye(cc) zeros(cc,cc+nr)];
+        b2=zeros(size(A2,1),1);
+        
+        A3=[M*speye(cc) -speye(cc) speye(cc) zeros(cc,nr)];
+        b3=M*ones(size(A3,1),1);
+        
+        A4=[M*speye(cc) speye(cc) -speye(cc) zeros(cc,nr)];
+        b4=M*ones(size(A4,1),1);
+        
+        Aineq=[A1;A2;A3;A4;zeros(1,cc*3),-tempModel.c'];
+        bineq=[b1;b2;b3;b4;-biomass_threshold];
+        
+        options = cplexoptimset;
+        options.Display = 'on';
+        options.TolFun=1e-9;
+        options.TolRLPFun=1e-9;
+        options.Algorithm='primal';
+        options.MaxTime=maxTime;
+        
+        [x, resnorm] = ...
+            cplexlsqmilp (C, d, Aineq, bineq, ...
+            Aeq, beq, [ ], [ ], [ ], lb, ub, ctype, x0, options);
+        scores=x(1:cc);
+        Lambda = logical(scores);
+        
+        
+    else
+        options=cplexoptimset('MaxTime',maxTime, 'Display','off');
+        scores = cplexlsqbilp(bsxfun(@times,U1,mask),dA1.*mask,ones(1,size(U1,2)),num_prediction,[],[],[],[],[],options);
+        Lambda = logical(scores);
+    end
+    
+    
+end
+
+    function [f,g] = obj(x)   % x = [lambda; v;vknown]
+        l = x(1:cc);
+        f = (U1*l-dA1)'*(U1*l-dA1);
+        g = 2*U1'*U1*l - 2*U1'*dA1;
+        g = [g;zeros(cc+nr,1)];
+    end
+
+    function [c,ceq] = nlc(U,S,nr, x)   % nonlinear constraint flux
+        [rr,~] = size(x);
+        midr=rr-nr;
+        lambda = x(1:midr/2);
+        v = x(midr/2+1:midr);
+        vknown=x(midr+1:end);
+        lv = lambda.*v;
+        ceq = U*lv+S*vknown;
+        c = [];
+        
+    end
+end
+
+
+
+

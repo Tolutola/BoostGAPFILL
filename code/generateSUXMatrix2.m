@@ -38,39 +38,48 @@ end
 % compounds if no compartment is specified
 model = CheckMetName(model);
 
+%change the nomenclature of the universal metabolites
+for i =1:length(OldModel.unModel.mets)
+    temp=OldModel.unModel.mets{i};
+    OldModel.unModel.mets{i}=strcat(temp(1:end-2),'[',temp(end),']');
+end
+
 
 % create KEGG Matrix - U
 % KEGG = createUniversalReactionModel(KEGGFilename, KEGGBlackList);
 % KEGG = transformKEGG2Model(KEGG,dictionary);
-% 
-% 
+%
+%
 % %merge all 3 matrixes
 % % 1. S with U
-% 
+%
 % model.RxnSubsystem = model.subSystems;
 % KEGG.RxnSubsystem = KEGG.subSystems;
-nm=length(OldModel.mets);
+% nm=length(OldModel.mets);
+nm=length(OldModel.unModel.mets);
 % KEGG.rxns=setdiff(OldModel.unrnames',model.rxns);
 
 [~,rem] = strtok(model.mets,'\[');
 listCompartments = unique(rem);
 cnt=1;
 
-for i=1:size(OldModel.unrnames,2)
-    tempMets=OldModel.mets(find(OldModel.US(:,i)));
+% for i=1:size(OldModel.unrnames,2)
+for i=1:size(OldModel.unModel.rxns,1)
+    
+    tempMets=OldModel.unModel.mets(find(OldModel.unModel.S(:,i)));
     tempMetsID=cellfun(@(x) x(end-2:end),tempMets,'UniformOutput',false);
     
     testR=cell2mat(cellfun(@(x) prod(strcmp(tempMetsID,x)),listCompartments,'UniformOutput',false));
     if any(testR)&& ~any (strcmp(tempMetsID,'[e]'))
-        KEGG.rxns(cnt,1)=OldModel.unrnames(i);
+        KEGG.rxns(cnt,1)=OldModel.unModel.rxns(i);
         cnt=cnt+1;
     end
 end
 
-KEGG.S=sparse(OldModel.US(:,ismember(OldModel.unrnames',KEGG.rxns)));
+KEGG.S=sparse(OldModel.unModel.S(:,ismember(OldModel.unModel.rxns',KEGG.rxns)));
 nr=length(KEGG.rxns);
 
-KEGG.mets=OldModel.OldMets;
+KEGG.mets=OldModel.unModel.mets;
 
 KEGG.b=zeros(nm,1);
 KEGG.lb=-1000*ones(nr,1);
@@ -122,8 +131,8 @@ if ~isempty(strfind(model.mets,'(c)')) ||~isempty(strfind(model.mets,'(e)'))
 end
 % fixes metabolites names if no compartment has been added to metabolites.
 % It assumes that the metabolites without compartment are in the cytosol
-    for i = 1 :length(model.mets)
-        if  isempty(regexp(model.mets{i},'\(\w\)')) && isempty(regexp(model.mets{i},'\[\w\]'))
-            model.mets{i} = strcat(model.mets{i},'[c]');
-        end
+for i = 1 :length(model.mets)
+    if  isempty(regexp(model.mets{i},'\(\w\)')) && isempty(regexp(model.mets{i},'\[\w\]'))
+        model.mets{i} = strcat(model.mets{i},'[c]');
     end
+end

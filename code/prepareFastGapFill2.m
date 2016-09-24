@@ -1,4 +1,4 @@
-function [consistModel,consistMatricesSUX,BlockedRxns] = prepareFastGapFill2(model,listCompartments,epsilon,filename,dictionary_file,blackList)
+function [consistModel,consistMatricesSUX,BlockedRxns] = prepareFastGapFill2(model,listCompartments,epsilon,filename,dictionary_file,blackList,newMet)
 %% function [consistModel,consistMatricesSUX,allBlockedRxns,solvableBlockedRxns] = prepareFastGapFill(model,epsilon,filename,dictionary_file,blackList)
 %
 % This function is required to generate the input data for fastGapFill.
@@ -89,7 +89,7 @@ end
 [consistModel, BlockedRxns] = identifyBlockedRxns(model,epsilon);
 
 % generate SUX
-MatricesSUX = generateSUXComp2(consistModel,dictionary, filename,blackList,listCompartments,model);
+MatricesSUX = generateSUXComp2(consistModel,dictionary, filename,blackList,listCompartments,model,newMet);
 
 %postprocessing
 %test consistency of MatricesSUX

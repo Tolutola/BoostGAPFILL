@@ -1,4 +1,4 @@
-function MatricesSUX =generateSUXComp2(model,dictionary, KEGGFilename, KEGGBlackList, listCompartments,OldModel)
+function MatricesSUX =generateSUXComp2(model,dictionary, KEGGFilename, KEGGBlackList, listCompartments,OldModel,newMets)
 %% function MatricesSUX =generateSUXComp(model,dictionary, KEGGFilename, KEGGBlackList, listCompartments)
 %
 % generateSUXMatrixComp creates the matrices for gap filling for compartmentalized metabolic models (S) such
@@ -47,25 +47,73 @@ function MatricesSUX =generateSUXComp2(model,dictionary, KEGGFilename, KEGGBlack
 % % create KEGG Matrix - U
 % KEGG = createUniversalReactionModel2(KEGGFilename, KEGGBlackList);
 % KEGG = transformKEGG2Model(KEGG,dictionary);
-nm=length(OldModel.mets);
+global testFlag
+% testFlag: 1 if the function is called by testgapfill in which case the
+% full stoichiometric matrix is used else the 'partially' full
+% stoichiometric matrix is used (called by BoostGapFill)
+%change the nomenclature of the universal metabolites
+for i =1:length(OldModel.universalMets)
+    temp=OldModel.universalMets{i};
+    OldModel.universalMets{i}=strcat(temp(1:end-2),'[',temp(end),']');
+end
+
+
+% nm=length(OldModel.unModel.mets);
 % KEGG.rxns=setdiff(OldModel.unrnames',model.rxns);
 cnt=1;
 
-for i=1:size(OldModel.unrnames,2)
-    tempMets=OldModel.mets(find(OldModel.US(:,i)));
-    tempMetsID=cellfun(@(x) x(end-2:end),tempMets,'UniformOutput',false);
-    
-    testR=cell2mat(cellfun(@(x) prod(strcmp(tempMetsID,x)),listCompartments,'UniformOutput',false));
-    if any(testR)&& ~any (strcmp(tempMetsID,'[e]'))
-        KEGG.rxns(cnt,1)=OldModel.unrnames(i);
-        cnt=cnt+1;
+%use list of all possible compartments
+listCompartments={'[c]','[m]','[l]','[g]','[r]','[x]','[n]'};
+
+if newMets
+%     if testFlag
+        universalStoich=OldModel.universalStoich_full;
+%     else
+%         universalStoich=OldModel.universalStoich;
+%     end
+    for i=1:size(OldModel.universalRxns,2)
+        tempMets=OldModel.universalMets(find(universalStoich(:,i)));
+        tempMetsID=cellfun(@(x) x(end-2:end),tempMets,'UniformOutput',false);
+        
+        testR=cell2mat(cellfun(@(x) prod(strcmp(tempMetsID,x)),listCompartments,'UniformOutput',false));
+        if any(testR)&& ~any (strcmp(tempMetsID,'[e]'))
+            KEGG.rxns(cnt,1)=OldModel.universalRxns(i);
+            cnt=cnt+1;
+        end
     end
+    
+    KEGG.S=sparse(universalStoich(:,ismember(OldModel.universalRxns',KEGG.rxns)));
+    nr=length(KEGG.rxns);
+    KEGG.mets=OldModel.universalMets;
+    %trim universal matrix
+    %     zeroMets=find(all(KEGG.S'==0));
+    %     KEGG.mets(zeroMets)=[];
+    %     KEGG.S(zeroMets,:)=[];
+    nm=length(KEGG.mets);
+    
+else
+    for i=1:size(OldModel.universalRxnsSmall,2)
+        tempMets=OldModel.OldMets(find(OldModel.universalStoichSmall(:,i)));
+        tempMetsID=cellfun(@(x) x(end-2:end),tempMets,'UniformOutput',false);
+        
+        testR=cell2mat(cellfun(@(x) prod(strcmp(tempMetsID,x)),listCompartments,'UniformOutput',false));
+        if any(testR)&& ~any (strcmp(tempMetsID,'[e]'))
+            KEGG.rxns(cnt,1)=OldModel.universalRxnsSmall(i);
+            cnt=cnt+1;
+        end
+    end
+    
+    KEGG.S=sparse(OldModel.universalStoichSmall(:,ismember(OldModel.universalRxnsSmall',KEGG.rxns)));
+    nr=length(KEGG.rxns);
+    KEGG.mets=OldModel.OldMets;
+    %trim universal matrix
+    %     zeroMets=find(all(KEGG.S'==0));
+    %     KEGG.mets(zeroMets)=[];
+    %     KEGG.S(zeroMets,:)=[];
+    nm=length(KEGG.mets);
+    
 end
 
-KEGG.S=sparse(OldModel.US(:,ismember(OldModel.unrnames',KEGG.rxns)));
-nr=length(KEGG.rxns);
-
-KEGG.mets=OldModel.OldMets;
 
 KEGG.b=zeros(nm,1);
 KEGG.lb=-1000*ones(nr,1);
@@ -73,7 +121,6 @@ KEGG.ub=1000*ones(nr,1);
 KEGG.subSystems=cell(nr,1);
 KEGG.rxnNames=KEGG.rxns;
 KEGG.rev=ones(nr,1);
-
 
 % for nrxns=1:size(OldModel.US,2)
 %     cVector=OldModel.US(:,nrxns);

@@ -1,4 +1,6 @@
-function [newReactions,RxnsRecovered,Stats,newModel]=FastGapFillSub(model,Rxns2Remove,WeightsPerRxn)
+function [newReactions,RxnsRecovered,Stats,newModel]=FastGapFillSub(model,Rxns2Remove,WeightsPerRxn,newMet)
+global testmode
+testmode=false; % the default weights of FASTGAPFILL are changed
 %change the nomenclature of mets
 for i =1:length(model.mets)
     temp=model.mets{i};
@@ -7,7 +9,11 @@ end
 
 oldRxns=model.rxns;
 model.OldMets=model.mets;
-model = removeRxns(model,Rxns2Remove,[],false);
+
+if ~isempty(Rxns2Remove)
+    model=removeRxns(model,Rxns2Remove,[],false);
+end
+
 % tempModel=model;
 
 
@@ -55,7 +61,7 @@ clear Rem tok rem;
 
 
 %Prepare fastGapFill
-[consistModel,consistMatricesSUX,BlockedRxns] = prepareFastGapFill2(model);
+[consistModel,consistMatricesSUX,BlockedRxns] = prepareFastGapFill2(model,[],[],[],[],[],newMet);
 
 Stats{cnt,i+1} = num2str(length(BlockedRxns.allRxns));cnt = cnt+1;
 Stats{cnt,i+1} = num2str(length(BlockedRxns.solvableRxns));cnt = cnt+1;
@@ -69,18 +75,23 @@ epsilon = 1e-4;
 % [AddedRxns] = fastGapFill(consistMatricesSUX,epsilon, weights);
 [AddedRxns,newModel] = fastGapFill2(consistMatricesSUX,epsilon,[],WeightsPerRxn);
 
+
 Stats{cnt,i+1} = num2str(length(AddedRxns.rxns));
 
 
 % Postprocessing
 [AddedRxnsExtended] = postProcessGapFillSolutions(AddedRxns,model,BlockedRxns,0);
-
+cnt=cnt+1;
 Stats{cnt,i+1} = num2str(AddedRxnsExtended.Stats.metabolicSol);cnt = cnt+1;
 Stats{cnt,i+1} = num2str(AddedRxnsExtended.Stats.transportSol);cnt = cnt+1;
 Stats{cnt,i+1} = num2str(AddedRxnsExtended.Stats.exchangeSol);cnt = cnt+1;
 
-newReactions=setdiff(AddedRxns.rxns,model.rxns);
-RxnsRecovered=newReactions(ismember(newReactions,oldRxns));
+newReactions=setdiff(AddedRxnsExtended.rxns,model.rxns);
+if ~isempty(Rxns2Remove)
+    RxnsRecovered=newReactions(ismember(newReactions,oldRxns));
+else
+    RxnsRecovered=[];
+end
 
 
 

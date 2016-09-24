@@ -6,9 +6,9 @@ clear all;
 datapath = strcat(pwd,'/data/');
 
 % select a model to read, you can add your models here. For each new model, only run this one time.
-mo = 9;
+mo = 2;
 
-for mo = 1:9
+% for mo = 1:9
 
 switch mo
     case 1
@@ -31,7 +31,7 @@ switch mo
         model = 'iIT341';
 end
 
-load(sprintf('data/%s.mat',model),model);  [~,Model] = evalc(model);
+load(sprintf('data/%s.mat',model));  %[~,Model] = evalc(model);
 
 S = Model.S;    %stoichiometric matrix S
 S = full(spones(S));   %make to binary
@@ -86,4 +86,4 @@ assert(isempty(nomatch));
 %% save all needed file into the original model file
 save(sprintf('data/%s.mat',model),'Model');
 
-end
+% end

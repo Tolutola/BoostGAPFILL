@@ -28,7 +28,11 @@ switch optmethod
     case 1
         %% to use MCMC optimization
         cd data;
-        cmd = sprintf('libfm.exe -task r -train %s.libfm -test %s.libfm -dim "1,1,%d" -out out_%d.txt -iter 100',FMtrain,FMtest,k,ith_experiment);
+        if ispc
+            cmd = sprintf('libfm.exe -task r -train %s.libfm -test %s.libfm -dim "1,1,%d" -out out_%d.txt -iter 100',FMtrain,FMtest,k,ith_experiment);
+        else
+            cmd = sprintf('libFM -task r -train %s.libfm -test %s.libfm -dim "1,1,%d" -out out_%d.txt -iter 100',FMtrain,FMtest,k,ith_experiment);
+        end
         system(cmd);    %run libFM
         pred = dlmread(sprintf('out_%d.txt',ith_experiment));    %load the output file of libFM
         delete(sprintf('%s.libfm',FMtrain));

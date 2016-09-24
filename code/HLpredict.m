@@ -16,6 +16,7 @@ function [I,scores,hlpredicted] = HLpredict(hltrain,hltest,num_prediction,max_it
 %  -scores: the column vector of scores that are assigned to each test hyperlink, higher scores
 %           indicates higher probabilities to be positive hyperlinks
 %  -hlpredicted: the predicted hyperlinks, same format as hltrain
+%    -modeFlag: indicates whether BoostGapFill is run in the integrated mode or not
 %
 %  *author: Muhan Zhang, Washington University in St. Louis
 %%
@@ -27,6 +28,7 @@ B = B - diag(diag(B));
 B = spones(B);    %the adjacency matrix of test hyperlinks, no use in hyperlink prediction, only for testing link prediction performance
 k = 8; % the number of latent factors used in matrix factorization (used in libFM)
 
-[I,scores] = ILSQ_Alternate(A,B,k,hltest,num_prediction,max_iter,blacklist,solver);
+
+[I,scores] = ILSQ_wrapper(A,B,k,hltest,num_prediction,max_iter,blacklist,solver);
 hlpredicted = hltest(:,I);
 

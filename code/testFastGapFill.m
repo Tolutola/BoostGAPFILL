@@ -1,4 +1,6 @@
-function [newReactions,RxnsRecovered,Stats,newModel]=testFastGapFill(model,Rxns2Remove)
+function [newReactions,RxnsRecovered,Stats,newModel]=testFastGapFill(model,Rxns2Remove,newMet)
+global testmode testFlag
+testmode=true; %used to set the default weights in FASTGAPFILL to that originally provided in the software
 % adaptation of the fastGAPFILL algorithm (to facilitate comparison)
 %change the nomenclature of mets
 for i =1:length(model.mets)
@@ -8,15 +10,22 @@ end
 
 oldRxns=model.rxns;
 model.OldMets=model.mets;
-model = removeRxns(model,Rxns2Remove,[],false);
+if ~isempty(Rxns2Remove)
+    model = removeRxns(model,Rxns2Remove,[],false);
+end
 % tempModel=model;
 
 % define weights for reactions to be added - the lower the weight the
 % higher the priority
-weights.MetabolicRxns = 0.1; % Kegg metabolic reactions
-weights.ExchangeRxns = 500; % Exchange reactions
-weights.TransportRxns = 500; % Transport reactions
+% weights.MetabolicRxns = 0.1; % Kegg metabolic reactions
+% weights.ExchangeRxns = 0.5; % Exchange reactions
+% weights.TransportRxns = 10; % Transport reactions
 
+weights=[];
+% testFlag: 1 if the function is called by testgapfill in which case the
+% full stoichiometric matrix is used else the 'partially' full
+% stoichiometric matrix is used (called by BoostGapFill)
+testFlag=1;
 % performance of algorithm is best if the weighting parameter is not 1
 %
 % all reactions are equally weighted
@@ -68,7 +77,7 @@ clear Rem tok rem;
 
 
 %Prepare fastGapFill
-[consistModel,consistMatricesSUX,BlockedRxns] = prepareFastGapFill2(model);
+[consistModel,consistMatricesSUX,BlockedRxns] = prepareFastGapFill2(model,[],[],[],[],[],newMet);
 
 Stats{cnt,i+1} = num2str(length(BlockedRxns.allRxns));cnt = cnt+1;
 Stats{cnt,i+1} = num2str(length(BlockedRxns.solvableRxns));cnt = cnt+1;
@@ -85,14 +94,23 @@ Stats{cnt,i+1} = num2str(length(AddedRxns.rxns));
 
 
 % Postprocessing
-[AddedRxnsExtended] = postProcessGapFillSolutions(AddedRxns,model,BlockedRxns,0);
+if ~isempty(AddedRxns.rxns)
+    [AddedRxnsExtended] = postProcessGapFillSolutions(AddedRxns,model,BlockedRxns,0);
+    cnt=cnt+1;
+    Stats{cnt,i+1} = num2str(AddedRxnsExtended.Stats.metabolicSol);cnt = cnt+1;
+    Stats{cnt,i+1} = num2str(AddedRxnsExtended.Stats.transportSol);cnt = cnt+1;
+    Stats{cnt,i+1} = num2str(AddedRxnsExtended.Stats.exchangeSol);cnt = cnt+1;
 
-Stats{cnt,i+1} = num2str(AddedRxnsExtended.Stats.metabolicSol);cnt = cnt+1;
-Stats{cnt,i+1} = num2str(AddedRxnsExtended.Stats.transportSol);cnt = cnt+1;
-Stats{cnt,i+1} = num2str(AddedRxnsExtended.Stats.exchangeSol);cnt = cnt+1;
-
-newReactions=setdiff(AddedRxns.rxns,model.rxns);
-RxnsRecovered=newReactions(ismember(newReactions,oldRxns));
+    newReactions=setdiff(AddedRxnsExtended.rxns,model.rxns);
+    if ~isempty(Rxns2Remove)
+        RxnsRecovered=newReactions(ismember(newReactions,oldRxns));
+    else
+       RxnsRecovered=[];  
+    end
+else
+    newReactions=[];
+   
+end
 
 
 

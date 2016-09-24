@@ -32,7 +32,7 @@ function [AddedRxns,newModel] = fastGapFill2(consistMatricesSUX,epsilon,weights,
 %
 % June 2013
 % Ines Thiele, http://thielelab.eu. 
-
+global def_weight
 %%
 if ~exist('epsilon','var') || isempty(epsilon)
     epsilon = 1e-4;
@@ -42,9 +42,9 @@ if ~exist('weights','var') || isempty(weights)
      % define weights for reactions to be added - the lower the weight the
     % higher the priority
     % default = equal weights
-    weights.MetabolicRxns = 10; % Kegg metabolic reactions  
-    weights.ExchangeRxns = 10; % Exchange reactions  
-    weights.TransportRxns = 10; % Transport reactions  
+    weights.MetabolicRxns = def_weight; % Kegg metabolic reactions  
+    weights.ExchangeRxns = def_weight; % Exchange reactions  
+    weights.TransportRxns = def_weight; % Transport reactions  
 end
 
 if ~exist('weightsPerReaction','var') || isempty(weightsPerReaction)
@@ -54,7 +54,7 @@ end
 
 
 % assign weights to the potentially to be added reactions to MatricesSUX
-consistMatricesSUX = assignRxnWeights(consistMatricesSUX,weights,weightsPerReaction);
+consistMatricesSUX = assignRxnWeights2(consistMatricesSUX,weights,weightsPerReaction);
 
 % testreactions=unique(consistMatricesSUX.rxns);
 % coreRxns=unique(consistMatricesSUX.rxns(consistMatricesSUX.C1));
