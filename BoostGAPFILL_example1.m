@@ -36,7 +36,6 @@ load data/iAF1260b
 options.maxIter=10; %maximum number of interations to run
 options.numAlternatives=1; % number of alternative solutions to generate
 options.solver='ibm_cplex'; %
-options.solver='gurobi'; %
 options.mFlag=1; % return extended Model with new reactions
 options.newMet=false;
 options.integerSoln=false;
