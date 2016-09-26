@@ -126,7 +126,7 @@ for j=1:nTest
         BoostGapFill(Model,Rxns2Remove{j},noOfRxns2Add,Blacklist,options);
     TimesB{j}=toc;
     % calculate new number of gaps in extended model
-    [~,NewRootGapsB{j}] = gapFind2(newModelsB{j});
+    [~,NewRootGapsB{j}] = gapFind2(newModelsB{j}{:});
     numNewGapsB(j)=length(NewRootGapsB{j});
     %
     %     %
@@ -139,7 +139,7 @@ for j=1:nTest
         BoostGapFill(Model,Rxns2Remove{j},noOfRxns2Add,Blacklist,options);
     TimesB2{j}=toc;
     % calculate new number of gaps in extended model
-    [~,NewRootGapsB2{j}] = gapFind2(newModelsB2{j});
+    [~,NewRootGapsB2{j}] = gapFind2(newModelsB2{j}{:});
     numNewGapsB2(j)=length(NewRootGapsB2{j});
     
     % BoostGAPFILL (mode 3)
@@ -149,7 +149,7 @@ for j=1:nTest
         BoostGapFill(Model,Rxns2Remove{j},noOfRxns2Add,Blacklist,options);
     TimesB3{j}=toc;
     % calculate new number of gaps in extended model
-    [~,NewRootGapsB3{j}] = gapFind2(newModelsB3{j});
+    [~,NewRootGapsB3{j}] = gapFind2(newModelsB3{j}{:});
     numNewGapsB3(j)=length(NewRootGapsB3{j});
     
     % FASTGAPFILL
@@ -157,7 +157,7 @@ for j=1:nTest
     [newReactionsF{j,1},RxnsRecoveredF{j,1},Stats{j,1},newModelsF{j}]=testFastGapFill(Model,Rxns2Remove{j},options.newMet);
     TimesF{j}=toc;
     % calculate new number of gaps in extended model
-    [~,NewRootGapsF{j}] = gapFind2(newModelsF{j});
+    [~,NewRootGapsF{j}] = gapFind2(newModelsF{j}{:});
     numNewGapsF(j)=length(NewRootGapsF{j});
     
     
