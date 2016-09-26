@@ -9,13 +9,22 @@ global integerSoln solver modeFlag tempModel biomass_threshold def_weight maxTim
 % blacklist:      list of blacklisted reactions
 
 %options structure
-% mFlag:          boolean indicating if a new model with the predicted reactions is to be returned
-
-% maxIter:        maximum number of iterations
-% solver:         solver to be used
-% mode:           different modes of running BoostGAPFILL ('pattern','pattern-constraints','integrated')
-% newMet:         flag to determine whether or not to include reactions with new
-% metabolites
+% mFlag:                boolean indicating if a new model with the predicted reactions is to be returned
+% maxIter:              maximum number of iterations
+% solver:               solver to be used% the following solvers can be used: 'ibm_cplex','gurobi' and MATLAB's 'lsqlin'.
+% mode:                 different modes of running BoostGAPFILL ('pattern','pattern-constraints','integrated')
+% newMet:               flag to determine whether or not to include reactions with new metabolites
+% integerSoln:          flag to determine whether to solve the orignal integer
+%                       least squares problem or the relaxed version
+% numSolns:             number of solution sets required
+% biomass_threshold:    threshold for viable biomass growth
+% maxTime:              used to limit the time for each iteration of the optimization problem in BoostGapFill.
+%                       important to set when running in integrated mode and when integer solutions are required
+%  def_weight:          used when integrating with FASTGAPFILL
+% rxnThreshold:         value between 0 and 1 ; used in BoostGAPFILL to alter the number of reactions selected;
+%                       lower values in larger number of reactions selected.        
+% newMetPenalty:        newMetPenalty paramter that penalizes the addition of new metabolites. 
+%                       higher numbers mean fewer selected reactions with new metabolites       
 
 
 %output
@@ -24,6 +33,42 @@ global integerSoln solver modeFlag tempModel biomass_threshold def_weight maxTim
 % tempModel:     new model created after adding predicted reactions
 
 % Authors: Tolutola Oyetunde and Muhan Zhang,  Washington University in St. Louis
+
+
+% setting default options
+if isempty(options)
+    options.mFlag=1;
+    options.maxIter=10;
+    options.solver='ibm_cplex';
+    options.mode='pattern';
+    options.newMet=false;
+    options.integerSoln=false;
+    options.numSolns=1;
+    options.biomass_threshold=0.05;
+    options.def_weight=10;
+    options.rxnThreshold=1e-12;
+    options.newMetPenalty=20;
+    
+else
+    if ~isfield(options,'mFlag')
+        options.mFlag=1;
+    end
+    if ~isfield(options,'maxIter')
+        options.maxIter=10;
+    end
+    if ~isfield(options,'solver')
+        options.solver='ibm_cplex';
+    end
+    if ~isfield(options,'mode')
+        options.mode='pattern';
+    end
+    if ~isfield(options,'newMet')
+        options.mFlag=1;
+    end
+        
+    
+    
+end
 
 % make global parameters available
 integerSoln=options.integerSoln;
@@ -128,7 +173,8 @@ end
 % alternative solutions 
 newReactions=cell(options.numSolns,1);
 RxnsRecovered=cell(options.numSolns,1);
-newReactions=cell(options.numSolns,1);
+newMetabolites=cell(options.numSolns,1);
+newModel=cell(options.numSolns,1);
 
 for j=1: options.numSolns
     [Lambda,scores] = HLpredict(trainr,unrepeat_US,threshold,options.maxIter,blacklist,options.solver);

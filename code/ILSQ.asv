@@ -1,7 +1,7 @@
 function [Lambda,scores,resnorm] = ILSQ(dA,U1,num_prediction,rr,cc,mask,blacklist,solver)
 %  for solving the (integer) least square optimization
 %%
-global maxTime penID newMet tempModel biomass_threshold modeFlag integerSoln
+global maxTime penID newMet tempModel biomass_threshold modeFlag integerSoln newMetPenalty
 l0 = rand(cc,1);
 opts = optimset('MaxFunEval',inf,'MaxIter',Inf,'display','off');
 
@@ -17,7 +17,7 @@ if ~integerSoln % relaxed solutions are required
         vub=M*ones(cc,1);
         U1 = bsxfun(@times,U1,mask);
         
-        solutionFBA=optimizeCbModel(tempModel);
+        %         solutionFBA=optimizeCbModel(tempModel);
         
         dA1 = dA1.*mask;
         
@@ -54,7 +54,7 @@ if ~integerSoln % relaxed solutions are required
         
         if newMet
             C=[C;zeros(1,size(C,2))];
-            C(end,penID)=1; % penalizing the addition of new metabolites
+            C(end,penID)=1*newMetPenalty; % penalizing the addition of new metabolites
             d=[d;0];
         end
         
@@ -66,8 +66,37 @@ if ~integerSoln % relaxed solutions are required
             options.Algorithm='primal';
             [scores,resnorm] = cplexlsqlin(C,d,[],[],[],[],zeros(cc,1),blacklist,l0,options);
             
-        else
+        elseif strcmp(solver,'lsqlin')
             [scores,resnorm] = lsqlin(C,d,[],[],[],[],zeros(cc,1),blacklist,l0,opts);
+            
+        elseif strcmp(solver,'gurobi')
+            clear params            
+            params.OutputFlag = 0;
+            params.DisplayInterval = 1;
+            params.Method = 0;    
+            params.Presolve = -1; 
+            params.IntFeasTol = 1e-5;
+            params.FeasibilityTol = 1e-6;
+            params.OptimalityTol = 1e-6;
+            QPproblem.Q = C;
+            QPproblem.modelsense = 'min';
+            QPproblem.obj=-d;
+            %lower bound
+            QPproblem.A=[eye(cc);-eye(cc)];
+            
+            [QPproblem.A,QPproblem.rhs,QPproblem.obj,QPproblem.sense] = deal(sparse(QPproblem.A),QPproblem.b,double(QPproblem.c),QPproblem.csense);
+            resultgurobi = gurobi(QPproblem,params);
+            
+            if strcmp(resultgurobi.status,'OPTIMAL')
+                 scores=resultgurobi.x;
+            else
+                error('error using gurobi')
+            end
+            
+        else
+            error('unknown solver: please use ibm_cplex, gurobi or lsqlin')
+            
+            
         end
     end
     
@@ -80,13 +109,17 @@ if ~integerSoln % relaxed solutions are required
         Lambda(scores>num_prediction) = 1;
         Lambda = logical(Lambda);
     end
- 
+    
 else  % integer solutions are required
+    %ibm_cplex for integer solutions
+    if ~strcmp(solver,'ibm_cplex')
+        error('please use ibm_cplex for integer solutions')
+    end
     
     if strcmp(modeFlag,'integrated')
-%         x=[lambdas,lambdas*w,w,v]
+        %         x=[lambdas,lambdas*w,w,v]
         [~,nr]=size(tempModel.S);
-%       for the lambdas
+        %       for the lambdas
         C=bsxfun(@times,U1,mask);
         d=dA1.*mask;
         
@@ -99,21 +132,25 @@ else  % integer solutions are required
         
         lwlb=-M*10*ones(cc,1);
         lwub=M*10*ones(cc,1);
-               
-%         solutionFBA=optimizeCbModel(tempModel);
+        
+        %         solutionFBA=optimizeCbModel(tempModel);
         %adjust bounds for exchange reactions
-        tempModel.lb(findExc
-               
+        %         [exc,upt]=findExcRxns(tempModel);
+        %         tempModel.lb(logical(exc+upt))=-M;
+        %         tempModel.ub(logical(exc+upt))=M;
+        %         tempModel.lb(upt)=-M;
+        %         tempModel.ub(upt)=M;
+        
         lb = [zeros(cc,1);lwlb;wlb;tempModel.lb];
         ub = [blacklist;lwub;wub;tempModel.ub];
         
         % variable type
         ctype(1:cc)='B'; % binary
         ctype(end+1:3*cc+nr)='C';  % continuous
-       
+        
         
         [~,nr]=size(tempModel.S);
-         if ~newMet
+        if ~newMet
             %             S=tempModel.trainr;
             S=tempModel.S;
             U=tempModel.unrepeat_US;
@@ -124,9 +161,9 @@ else  % integer solutions are required
             S=sUs(:,ismember(tempModel.unrnames,tempModel.rxns));
         end
         
-%         x0 = [zeros(cc,1);randn(cc,1);solutionFBA.x];
-          x0=[];
-          
+        %         x0 = [zeros(cc,1);randn(cc,1);solutionFBA.x];
+        x0=[];
+        
         % specify equality constraints
         nm=size(S,1);
         Aeq=[zeros(nm,cc),U,zeros(nm,cc),S];
@@ -152,15 +189,28 @@ else  % integer solutions are required
         bineq=[b1;b2;b3;b4;-biomass_threshold];
         
         options = cplexoptimset;
-        options.Display = 'on';
+        options.Display = 'off';
         options.TolFun=1e-9;
         options.TolRLPFun=1e-9;
         options.Algorithm='primal';
         options.MaxTime=maxTime;
-        
-        [x, resnorm] = ...
-            cplexlsqmilp (C, d, Aineq, bineq, ...
-            Aeq, beq, [ ], [ ], [ ], lb, ub, ctype, x0, options);
+        try
+            [x, resnorm] = ...
+                cplexlsqmilp (C, d, Aineq, bineq, ...
+                Aeq, beq, [ ], [ ], [ ], lb, ub, ctype, x0, options);
+        catch
+            tempModel.lb=-M*ones(nr,1);
+            tempModel.ub=M*ones(nr,1);
+            
+            lb = [zeros(cc,1);lwlb;wlb;tempModel.lb];
+            ub = [blacklist;lwub;wub;tempModel.ub];
+            
+            [x, resnorm] = ...
+                cplexlsqmilp (C, d, Aineq, bineq, ...
+                Aeq, beq, [ ], [ ], [ ], lb, ub, ctype, x0, options);
+            
+            
+        end
         scores=x(1:cc);
         Lambda = logical(scores);
         

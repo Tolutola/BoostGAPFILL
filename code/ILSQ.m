@@ -17,7 +17,7 @@ if ~integerSoln % relaxed solutions are required
         vub=M*ones(cc,1);
         U1 = bsxfun(@times,U1,mask);
         
-%         solutionFBA=optimizeCbModel(tempModel);
+        %         solutionFBA=optimizeCbModel(tempModel);
         
         dA1 = dA1.*mask;
         
@@ -66,8 +66,37 @@ if ~integerSoln % relaxed solutions are required
             options.Algorithm='primal';
             [scores,resnorm] = cplexlsqlin(C,d,[],[],[],[],zeros(cc,1),blacklist,l0,options);
             
-        else
+        elseif strcmp(solver,'lsqlin')
             [scores,resnorm] = lsqlin(C,d,[],[],[],[],zeros(cc,1),blacklist,l0,opts);
+            
+        elseif strcmp(solver,'gurobi')
+            clear params            
+            params.OutputFlag = 0;
+            params.DisplayInterval = 1;
+            params.Method = 0;    
+            params.Presolve = -1; 
+            params.IntFeasTol = 1e-5;
+            params.FeasibilityTol = 1e-6;
+            params.OptimalityTol = 1e-6;
+            QPproblem.Q = C'*C;
+            QPproblem.modelsense = 'min';
+            QPproblem.obj=-full(C'*d);
+            %lower and upper bounds
+            QPproblem.A=sparse([eye(cc);-eye(cc)]);
+            QPproblem.rhs=[zeros(cc,1);blacklist];
+            QPproblem.sense='<';
+            resultgurobi = gurobi(QPproblem,params);
+            
+            if strcmp(resultgurobi.status,'OPTIMAL')
+                 scores=resultgurobi.x;
+            else
+                error('error using gurobi')
+            end
+            
+        else
+            error('unknown solver: please use ibm_cplex, gurobi or lsqlin')
+            
+            
         end
     end
     
@@ -82,6 +111,10 @@ if ~integerSoln % relaxed solutions are required
     end
     
 else  % integer solutions are required
+    %ibm_cplex for integer solutions
+    if ~strcmp(solver,'ibm_cplex')
+        error('please use ibm_cplex for integer solutions')
+    end
     
     if strcmp(modeFlag,'integrated')
         %         x=[lambdas,lambdas*w,w,v]
@@ -103,8 +136,8 @@ else  % integer solutions are required
         %         solutionFBA=optimizeCbModel(tempModel);
         %adjust bounds for exchange reactions
         %         [exc,upt]=findExcRxns(tempModel);
-%         tempModel.lb(logical(exc+upt))=-M;
-%         tempModel.ub(logical(exc+upt))=M;
+        %         tempModel.lb(logical(exc+upt))=-M;
+        %         tempModel.ub(logical(exc+upt))=M;
         %         tempModel.lb(upt)=-M;
         %         tempModel.ub(upt)=M;
         
@@ -169,8 +202,8 @@ else  % integer solutions are required
             tempModel.lb=-M*ones(nr,1);
             tempModel.ub=M*ones(nr,1);
             
-             lb = [zeros(cc,1);lwlb;wlb;tempModel.lb];
-             ub = [blacklist;lwub;wub;tempModel.ub];
+            lb = [zeros(cc,1);lwlb;wlb;tempModel.lb];
+            ub = [blacklist;lwub;wub;tempModel.ub];
             
             [x, resnorm] = ...
                 cplexlsqmilp (C, d, Aineq, bineq, ...
